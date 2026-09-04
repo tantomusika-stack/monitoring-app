@@ -2,3 +2,4 @@ streamlit
 bcrypt
 pandas
 python-docx
+google-generativeai
