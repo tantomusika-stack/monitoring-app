@@ -143,10 +143,13 @@ def generate_word_report(petugas_text, cabor, tanggal, tempat, catatan, fotos):
 # ==========================================
 init_db()
 
+# Inisialisasi session state dasar
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
     st.session_state['username'] = ''
     st.session_state['role'] = ''
+if 'selected_schedule' not in st.session_state:
+    st.session_state['selected_schedule'] = None
 
 # --- HALAMAN LOGIN ---
 if not st.session_state['logged_in']:
@@ -213,81 +216,102 @@ else:
         if not schedules_data:
             st.warning("⚠️ Belum ada jadwal monitoring yang tersedia. Harap hubungi Admin.")
         else:
-            schedule_options = {f"{s[1]} | {s[2]} | {s[3]}": s for s in schedules_data}
-            selected_label = st.selectbox("📌 1. Pilih Jadwal Monitoring yang Tersedia", list(schedule_options.keys()))
-            selected_schedule = schedule_options[selected_label]
-            
-            val_cabor = selected_schedule[1]
-            val_tanggal = selected_schedule[2]
-            val_tempat = selected_schedule[3]
+            # === TAMPILAN 1: GRID JADWAL (Jika belum ada yang dipilih) ===
+            if st.session_state['selected_schedule'] is None:
+                st.markdown("#### 📌 Daftar Jadwal Monitoring (Klik untuk mengisi laporan)")
+                
+                cols = st.columns(2)
+                for idx, s in enumerate(schedules_data):
+                    with cols[idx % 2]:
+                        with st.container(border=True):
+                            st.markdown(f"### 🏆 {s[1]}")
+                            st.markdown(f"📅 **Tanggal:** {s[2]}")
+                            st.markdown(f"📍 **Tempat:** {s[3]}")
+                            if st.button("📝 Isi Laporan", key=f"btn_pilih_{s[0]}", use_container_width=True):
+                                st.session_state['selected_schedule'] = s
+                                st.rerun()
 
-            with st.container(border=True):
-                st.markdown("#### 📋 2. Detail Evaluasi & Dokumentasi")
+            # === TAMPILAN 2: FORM LAPORAN (Jika jadwal sudah dipilih) ===
+            else:
+                if st.button("⬅️ Kembali ke Daftar Jadwal"):
+                    st.session_state['selected_schedule'] = None
+                    st.session_state['report_generated'] = False
+                    st.rerun()
                 
-                petugas_text = st.text_area("👤 Daftar Petugas (Tulis 1 nama per baris)", 
-                                            placeholder="Contoh:\nBudi Santoso\nAndi Saputra", height=100)
+                selected_schedule = st.session_state['selected_schedule']
+                val_cabor = selected_schedule[1]
+                val_tanggal = selected_schedule[2]
+                val_tempat = selected_schedule[3]
                 
-                catatan = st.text_area("✍️ Catatan Evaluasi / Hasil Monitoring", height=150)
-                
-                st.markdown("**📸 Upload Foto Bukti (Bebas 2 s/d 5 Foto)**")
-                fotos = st.file_uploader("Otomatis digabung jadi 1 halaman rapi di Word.", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
+                st.info(f"Anda sedang mengisi form untuk: **{val_cabor}** | {val_tanggal} | {val_tempat}")
 
-                submit_laporan = st.button("📄 Generate & Simpan Laporan", use_container_width=True, type="primary")
+                with st.container(border=True):
+                    st.markdown("#### 📋 Detail Evaluasi & Dokumentasi")
+                    
+                    petugas_text = st.text_area("👤 Daftar Petugas (Tulis 1 nama per baris)", 
+                                                placeholder="Contoh:\nBudi Santoso\nAndi Saputra", height=100)
+                    
+                    catatan = st.text_area("✍️ Catatan Evaluasi / Hasil Monitoring", height=150)
+                    
+                    st.markdown("**📸 Upload Foto Bukti (Bebas 2 s/d 5 Foto)**")
+                    fotos = st.file_uploader("Otomatis digabung jadi 1 halaman rapi di Word.", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
-            if submit_laporan:
-                if not petugas_text.strip():
-                    st.error("⚠️ Harap isi minimal 1 nama petugas!")
-                elif not catatan.strip():
-                    st.error("⚠️ Catatan evaluasi tidak boleh kosong!")
-                elif len(fotos) < 2:
-                    st.error("🚨 Minimal unggah 2 foto dokumentasi.")
-                elif len(fotos) > 5:
-                    st.error("🚨 Maksimal 5 foto dokumentasi agar muat 1 halaman.")
-                else:
-                    with st.spinner("⏳ Menyusun dokumen laporan & menyimpan ke server..."):
-                        word_file = generate_word_report(petugas_text, val_cabor, val_tanggal, val_tempat, catatan, fotos)
-                        
-                        safe_date_name = val_tanggal.replace(" s/d ", "_").replace("-", "").replace("/", "")
-                        file_name_doc = f"Monev_{val_cabor.split()[0]}_{safe_date_name}.docx"
-                        
-                        # Simpan ke Database
-                        file_bytes = word_file.getvalue()
-                        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        
-                        conn = sqlite3.connect(DB_NAME)
-                        c = conn.cursor()
-                        c.execute("INSERT INTO reports (cabor, tanggal_kegiatan, submit_time, file_name, file_data) VALUES (?, ?, ?, ?, ?)",
-                                  (val_cabor, val_tanggal, now_str, file_name_doc, file_bytes))
-                        conn.commit()
-                        conn.close()
-                        
-                        st.session_state['report_generated'] = True
-                        st.session_state['word_file'] = word_file
-                        st.session_state['file_name_doc'] = file_name_doc
-                        
-                        # Update pesan WA (hanya memberitahu admin untuk cek aplikasi)
-                        wa_number = "6285691860578"
-                        pesan = f"Halo Admin, Laporan Monitoring *{val_cabor}* (Tanggal Kegiatan: {val_tanggal}) telah selesai dibuat dan berhasil masuk ke sistem.\n\nSilakan login ke aplikasi dan buka menu *Arsip Laporan* untuk mengunduh dokumen."
-                        wa_link = f"https://wa.me/{wa_number}?text={urllib.parse.quote(pesan)}"
-                        st.session_state['wa_link'] = wa_link
-            
-            if st.session_state.get('report_generated', False):
-                st.success("🎉 **Laporan Berhasil Disimpan di Sistem!** (Berlaku 30 Hari)")
-                colA, colB = st.columns(2)
+                    submit_laporan = st.button("📄 Generate & Simpan Laporan", use_container_width=True, type="primary")
+
+                if submit_laporan:
+                    if not petugas_text.strip():
+                        st.error("⚠️ Harap isi minimal 1 nama petugas!")
+                    elif not catatan.strip():
+                        st.error("⚠️ Catatan evaluasi tidak boleh kosong!")
+                    elif len(fotos) < 2:
+                        st.error("🚨 Minimal unggah 2 foto dokumentasi.")
+                    elif len(fotos) > 5:
+                        st.error("🚨 Maksimal 5 foto dokumentasi agar muat 1 halaman.")
+                    else:
+                        with st.spinner("⏳ Menyusun dokumen laporan & menyimpan ke server..."):
+                            word_file = generate_word_report(petugas_text, val_cabor, val_tanggal, val_tempat, catatan, fotos)
+                            
+                            safe_date_name = val_tanggal.replace(" s/d ", "_").replace("-", "").replace("/", "")
+                            file_name_doc = f"Monev_{val_cabor.split()[0]}_{safe_date_name}.docx"
+                            
+                            # Simpan ke Database
+                            file_bytes = word_file.getvalue()
+                            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            
+                            conn = sqlite3.connect(DB_NAME)
+                            c = conn.cursor()
+                            c.execute("INSERT INTO reports (cabor, tanggal_kegiatan, submit_time, file_name, file_data) VALUES (?, ?, ?, ?, ?)",
+                                      (val_cabor, val_tanggal, now_str, file_name_doc, file_bytes))
+                            conn.commit()
+                            conn.close()
+                            
+                            st.session_state['report_generated'] = True
+                            st.session_state['word_file'] = word_file
+                            st.session_state['file_name_doc'] = file_name_doc
+                            
+                            # Update pesan WA
+                            wa_number = "6285691860578"
+                            pesan = f"Halo Admin, Laporan Monitoring *{val_cabor}* (Tanggal Kegiatan: {val_tanggal}) telah selesai dibuat dan berhasil masuk ke sistem.\n\nSilakan login ke aplikasi dan buka menu *Arsip Laporan* untuk mengunduh dokumen."
+                            wa_link = f"https://wa.me/{wa_number}?text={urllib.parse.quote(pesan)}"
+                            st.session_state['wa_link'] = wa_link
                 
-                with colA:
-                    st.download_button(
-                        label="📥 Unduh Salinan untuk Anda",
-                        data=st.session_state['word_file'],
-                        file_name=st.session_state['file_name_doc'],
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True
-                    )
-                with colB:
-                    st.link_button("📲 Kirim Notifikasi via WhatsApp ke Admin", 
-                                   st.session_state['wa_link'], 
-                                   use_container_width=True)
-                    st.caption("*(Kirim pesan teks ini agar Admin tahu laporan sudah siap diunduh)*")
+                if st.session_state.get('report_generated', False):
+                    st.success("🎉 **Laporan Berhasil Disimpan di Sistem!** (Berlaku 30 Hari)")
+                    colA, colB = st.columns(2)
+                    
+                    with colA:
+                        st.download_button(
+                            label="📥 Unduh Salinan untuk Anda",
+                            data=st.session_state['word_file'],
+                            file_name=st.session_state['file_name_doc'],
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True
+                        )
+                    with colB:
+                        st.link_button("📲 Kirim Notifikasi via WhatsApp ke Admin", 
+                                       st.session_state['wa_link'], 
+                                       use_container_width=True)
+                        st.caption("*(Kirim pesan teks ini agar Admin tahu laporan sudah siap diunduh)*")
 
     # ----------------------------------------------------
     # MENU ADMIN: ARSIP LAPORAN
