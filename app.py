@@ -511,25 +511,92 @@ else:
 
 
     # =====================================================
-    # MENU: KELOLA JADWAL, ARSIP, DAN USER (Tetap sama seperti aslinya)
+    # MENU: KELOLA JADWAL, ARSIP, DAN USER
     # =====================================================
-    # (Kode di bawah ini sengaja tidak saya ubah logika aslinya untuk menjaga kestabilan backend Anda, 
-    # namun akan otomatis menyesuaikan styling visual yang baru).
-    
     elif choice == "📅 Kelola Jadwal":
         st.markdown("### 📅 Kelola Jadwal Monitoring")
         st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-        # --- (Isi menu kelola jadwal Anda persis sama dengan kode sebelumnya di sini) ---
-        st.info("Fitur Kelola Jadwal backend tetap berfungsi normal seperti kode asli.")
         
+        with st.form("tambah_jadwal_form"):
+            st.subheader("➕ Tambah Jadwal Baru")
+            c_cabor = st.text_input("Cabang Olahraga", placeholder="Contoh: Atletik")
+            c_tanggal = st.date_input("Tanggal Kegiatan")
+            c_tempat = st.text_input("Lokasi / Tempat", placeholder="Contoh: Stadion Utama")
+            
+            submit_jadwal = st.form_submit_button("Simpan Jadwal", type="primary")
+            if submit_jadwal:
+                if c_cabor and c_tempat:
+                    try:
+                        supabase.table("schedules").insert({
+                            "cabor": c_cabor,
+                            "tanggal": str(c_tanggal),
+                            "tempat": c_tempat
+                        }).execute()
+                        st.success("✅ Jadwal berhasil ditambahkan!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal menambah jadwal: {e}")
+                else:
+                    st.warning("⚠️ Cabang Olahraga dan Tempat harus diisi!")
+
+        st.markdown("#### 📋 Daftar Jadwal Saat Ini")
+        try:
+            jadwal_data = supabase.table("schedules").select("*").order("id", desc=True).execute().data
+            if jadwal_data:
+                df_jadwal = pd.DataFrame(jadwal_data)
+                st.dataframe(df_jadwal[["cabor", "tanggal", "tempat"]], use_container_width=True)
+            else:
+                st.info("Belum ada jadwal yang terdaftar.")
+        except:
+            st.info("Tabel 'schedules' belum tersedia atau kosong.")
+
     elif choice == "📂 Arsip Laporan":
         st.markdown("### 📂 Arsip Laporan Tersimpan")
         st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-        # --- (Isi menu arsip Anda persis sama dengan kode sebelumnya di sini) ---
-        st.info("Fitur Arsip backend tetap berfungsi normal seperti kode asli.")
         
+        try:
+            laporan_data = supabase.table("reports").select("*").order("submit_time", desc=True).execute().data
+            if laporan_data:
+                for rep in laporan_data:
+                    with st.expander(f"📄 {rep['cabor']} - {rep['tanggal_kegiatan']}"):
+                        st.write(f"**Disubmit oleh:** {rep['submitted_by']}")
+                        st.write(f"**Waktu:** {rep['submit_time']}")
+                        # Anda bisa menambahkan tombol download file path di sini jika diperlukan
+            else:
+                st.info("Belum ada laporan yang tersimpan.")
+        except:
+            st.info("Tabel 'reports' belum tersedia atau kosong.")
+
     elif choice == "👥 Kelola User":
         st.markdown("### 👥 Manajemen Pengguna")
         st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-        # --- (Isi menu kelola user Anda persis sama dengan kode sebelumnya di sini) ---
-        st.info("Fitur Manajemen Pengguna backend tetap berfungsi normal seperti kode asli.")
+        
+        with st.form("tambah_user_form"):
+            st.subheader("➕ Tambah Akun Baru")
+            u_name = st.text_input("Username Baru")
+            u_pass = st.text_input("Password", type="password")
+            u_role = st.selectbox("Role (Hak Akses)", ["user", "admin"])
+            
+            submit_user = st.form_submit_button("Buat Akun", type="primary")
+            if submit_user:
+                if u_name and u_pass:
+                    try:
+                        supabase.table("users").insert({
+                            "username": u_name.lower(),
+                            "password": hash_password(u_pass),
+                            "role": u_role
+                        }).execute()
+                        st.success(f"✅ Akun {u_name} berhasil dibuat!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal membuat akun: {e}")
+                else:
+                    st.warning("⚠️ Username dan Password tidak boleh kosong!")
+                    
+        st.markdown("#### 📋 Daftar Akun")
+        try:
+            users_data = supabase.table("users").select("username, role").execute().data
+            if users_data:
+                st.dataframe(pd.DataFrame(users_data), use_container_width=True)
+        except:
+            pass
