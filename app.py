@@ -5,14 +5,13 @@ import pandas as pd
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
 import io
 import datetime
 import urllib.parse
 import uuid
 
 # =========================================================
-# KONFIGURASI HALAMAN
+# KONFIGURASI HALAMAN (HARUS DI BARIS PALING ATAS)
 # =========================================================
 st.set_page_config(
     page_title="Monitoring Binpres KONI",
@@ -104,9 +103,8 @@ def init_db():
                 "role": "admin"
             }).execute()
     except Exception as e:
-        st.error("❌ Gagal menghubungkan database Supabase.")
-        st.code(str(e))
-        st.stop()
+        # Jika error karena RLS, biarkan lewat (karena akun bisa dibuat manual / RLS disable)
+        pass
 
 def delete_old_reports():
     try:
@@ -302,17 +300,6 @@ def upload_report_file(file_bytes, file_name):
     except Exception as e:
         raise Exception(f"Gagal upload file ke Storage: {e}")
 
-def download_report_file(file_path):
-    try:
-        return supabase.storage.from_(BUCKET_NAME).download(file_path)
-    except Exception as e:
-        raise Exception(f"Gagal mengambil file: {e}")
-
-def delete_report_file(file_path):
-    try:
-        if file_path: supabase.storage.from_(BUCKET_NAME).remove([file_path])
-    except: pass
-
 # =========================================================
 # SESSION STATE
 # =========================================================
@@ -352,7 +339,7 @@ if not st.session_state["logged_in"]:
                             st.error("🚨 Username atau password salah!")
 
 # =========================================================
-# HALAMAN SETELAH LOGIN
+# HALAMAN SETELAH LOGIN (DASHBOARD)
 # =========================================================
 else:
     # SIDEBAR
@@ -375,14 +362,13 @@ else:
         st.rerun()
 
     # =====================================================
-    # FORM LAPORAN E-MONITORING (SESUAI PDF)
+    # MENU 1: FORM LAPORAN E-MONITORING
     # =====================================================
     if choice == "📝 Form Laporan e-Monitoring":
         st.markdown("### 📝 Form Laporan e-Monitoring Olahraga")
         st.markdown(f"**Tanggal Hari Ini:** {get_current_time_id()}")
         st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
 
-        # 1. Pilih Jadwal
         try:
             schedule_response = supabase.table("schedules").select("id, cabor, tanggal, tempat").order("id", desc=True).execute()
             schedules_data = schedule_response.data or []
@@ -403,38 +389,34 @@ else:
             with st.container(border=True):
                 st.markdown("#### 📋 2. Formulir Data Program & Evaluasi")
                 
-                # BAGIAN A & B (Data Form)
                 colA, colB = st.columns(2)
                 with colA:
                     nama_program = st.text_input("Nama Program", "Pemusatan Latihan Daerah (Pelatda) Utama")
-                    fokus = st.text_input("Fokus Pembinaan", "Persiapan Menuju Pekan Olahraga Nasional (PON)")
+                    fokus = st.text_input("Fokus Pembinaan", "Persiapan Menuju Pekan Olahraga Provinsi (Porprov)")
                     jml_atlet = st.text_input("Jumlah Atlet Aktif", "12 Atlet (7 Putra, 5 Putri)")
-                    pelatih = st.text_input("Pelatih Kepala", "Budi Darmawan, S.Or., M.Pd.")
+                    pelatih = st.text_input("Pelatih Kepala", "")
                 with colB:
-                    instansi = st.text_input("Instansi Pengawas", "Dinas Pemuda dan Olahraga (Dispora)")
-                    periode = st.text_input("Periode Laporan", "September 2026 (Minggu ke-2)")
+                    instansi = st.text_input("Instansi Pengawas", "Binpres KONI Kab. Tangerang")
+                    periode = st.text_input("Periode Laporan", "September 2026")
                     target_fisik = st.text_input("Target Kondisi Fisik / VO2Max", "90.00%")
                     realisasi = st.text_input("Realisasi Rata-rata Atlet", "87.50%")
                 
                 status_eval = st.selectbox("Status Evaluasi Latihan", ["Sangat Baik", "Tercapai", "Perlu Peningkatan", "Buruk"])
 
-                # BAGIAN C (Deskripsi)
                 deskripsi = st.text_area(
                     "Deskripsi Rinci Pelaksanaan Program", 
                     "Berdasarkan data pemantauan minggu ini, program latihan berjalan sesuai kurikulum...\n"
                     "1. Latihan Fisik (Strength & Conditioning): ...\n"
-                    "2. Latihan Teknik Lintasan (Track): ...\n"
+                    "2. Latihan Teknik: ...\n"
                     "3. Pemulihan (Recovery) & Medis: ...", height=120
                 )
 
-                # BAGIAN D (Kendala & Mitigasi)
                 colC, colD = st.columns(2)
                 with colC:
-                    kendala = st.text_area("Identifikasi Kendala Lapangan", "1. Cuaca hujan di sore hari...\n2. Atlet mengeluhkan ketegangan otot...")
+                    kendala = st.text_area("Identifikasi Kendala Lapangan", "1. ...\n2. ...")
                 with colD:
-                    mitigasi = st.text_area("Mitigasi & Rencana Tindak Lanjut", "1. Mengalihkan jadwal sore ke pagi hari...\n2. Tindakan cepat oleh fisioterapis...")
+                    mitigasi = st.text_area("Mitigasi & Rencana Tindak Lanjut", "1. ...\n2. ...")
 
-                # BAGIAN E (Tanda Tangan & Foto)
                 st.markdown("#### ✍️ 3. Pengaturan Tanda Tangan Laporan")
                 col_sig1, col_sig2 = st.columns(2)
                 with col_sig1:
@@ -442,9 +424,9 @@ else:
                 with col_sig2:
                     admin_jabatan = st.text_input("Jabatan / Peran", "Ketua Satlak Pembinaan Prestasi")
 
-                st.markdown("**📸 4. Upload Foto Dokumentasi (2 s/d 4 Foto)**")
+                st.markdown("**📸 4. Upload Foto Dokumentasi (Min. 1 Foto)**")
                 fotos = st.file_uploader(
-                    "Foto akan di-layout menjadi kotak berdampingan di Halaman 2.",
+                    "Foto akan di-layout menjadi kotak berdampingan di Halaman Lampiran.",
                     type=["png", "jpg", "jpeg"], accept_multiple_files=True
                 )
 
@@ -456,7 +438,7 @@ else:
                 elif not fotos or len(fotos) < 1: st.error("🚨 Minimal unggah 1 foto dokumentasi.")
                 else:
                     try:
-                        with st.spinner("⏳ Menyusun dokumen laporan format PDF-style..."):
+                        with st.spinner("⏳ Menyusun dokumen laporan..."):
                             word_file = generate_word_report(
                                 val_cabor, val_tanggal, val_tempat, nama_program, fokus, 
                                 jml_atlet, pelatih, instansi, periode, target_fisik, realisasi, 
@@ -468,10 +450,8 @@ else:
                             file_name_doc = f"Monev_{safe_cabor}_{safe_date}.docx"
                             file_bytes = word_file.getvalue()
                             
-                            # Upload to Supabase Storage
                             file_path = upload_report_file(file_bytes, file_name_doc)
                             
-                            # Save to Database
                             supabase.table("reports").insert({
                                 "cabor": val_cabor,
                                 "tanggal_kegiatan": val_tanggal,
@@ -480,12 +460,10 @@ else:
                                 "submitted_by": st.session_state["username"]
                             }).execute()
                             
-                            # Update Session State
                             st.session_state["report_generated"] = True
                             st.session_state["word_file"] = file_bytes
                             st.session_state["file_name_doc"] = file_name_doc
 
-                            # WhatsApp Setup
                             pesan = f"Halo Admin, Laporan e-Monitoring *{val_cabor}* telah di-submit ke sistem."
                             st.session_state["wa_link"] = f"https://wa.me/6285691860578?text={urllib.parse.quote(pesan)}"
 
@@ -494,9 +472,7 @@ else:
                         st.error("❌ Gagal menyimpan laporan.")
                         st.code(str(e))
 
-            # TAMPILKAN TOMBOL DOWNLOAD JIKA SUKSES
             if st.session_state.get("report_generated", False):
-                st.success("🎉 **Laporan Berhasil Dibuat!**")
                 colDL1, colDL2 = st.columns(2)
                 with colDL1:
                     st.download_button(
@@ -511,13 +487,12 @@ else:
 
 
     # =====================================================
-    # MENU: KELOLA JADWAL, ARSIP, DAN USER
+    # MENU 2: KELOLA JADWAL
     # =====================================================
-   elif choice == "📅 Kelola Jadwal":
+    elif choice == "📅 Kelola Jadwal":
         st.markdown("### 📅 Kelola Jadwal Monitoring")
         st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
         
-        # Daftar lengkap cabor sesuai gambar
         daftar_cabor = [
             "ANGGAR (IKASI)", "AERO SPORT (FASI)", "ARUNG JERAM (FAJI)", "ATLETIK (PASI)", 
             "ANGKAT BESI (PABSI)", "ANGKAT BERAT (PABERSI)", "BINARAGA FITNESS (PBFI)", 
@@ -540,24 +515,13 @@ else:
 
         with st.form("tambah_jadwal_form"):
             st.subheader("➕ Tambah Jadwal Baru")
-            
-            # 1. Dropdown Cabor
             c_cabor = st.selectbox("Cabang Olahraga", daftar_cabor)
-            
-            # 2. Kalender Range (Bisa 1 hari atau lebih)
-            c_tanggal = st.date_input(
-                "Tanggal Kegiatan (Klik 2 kali di kalender untuk rentang hari)", 
-                value=[], # Value kosong memicu mode rentang tanggal
-                help="Pilih tanggal mulai, lalu klik tanggal selesai. Jika hanya 1 hari, klik tanggal yang sama dua kali."
-            )
-            
+            c_tanggal = st.date_input("Tanggal Kegiatan", value=[])
             c_tempat = st.text_input("Lokasi / Tempat", placeholder="Contoh: Stadion Utama")
             
             submit_jadwal = st.form_submit_button("Simpan Jadwal", type="primary")
-            
             if submit_jadwal:
                 if c_cabor and c_tempat and len(c_tanggal) > 0:
-                    # Logika format tanggal: 1 hari atau rentang
                     if len(c_tanggal) == 1:
                         tanggal_str = c_tanggal[0].strftime("%d %b %Y")
                     else:
@@ -574,7 +538,7 @@ else:
                     except Exception as e:
                         st.error(f"Gagal menambah jadwal: {e}")
                 else:
-                    st.warning("⚠️ Cabang Olahraga, Tanggal, dan Tempat harus diisi secara lengkap!")
+                    st.warning("⚠️ Cabang Olahraga, Tanggal, dan Tempat harus diisi lengkap!")
 
         st.markdown("#### 📋 Daftar Jadwal Saat Ini")
         try:
@@ -586,3 +550,62 @@ else:
                 st.info("Belum ada jadwal yang terdaftar.")
         except:
             st.info("Tabel 'schedules' belum tersedia atau kosong.")
+
+
+    # =====================================================
+    # MENU 3: KELOLA USER
+    # =====================================================
+    elif choice == "👥 Kelola User":
+        st.markdown("### 👥 Manajemen Pengguna")
+        st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+        
+        with st.form("tambah_user_form"):
+            st.subheader("➕ Tambah Akun Baru")
+            u_name = st.text_input("Username Baru")
+            u_pass = st.text_input("Password", type="password")
+            u_role = st.selectbox("Role (Hak Akses)", ["user", "admin"])
+            
+            submit_user = st.form_submit_button("Buat Akun", type="primary")
+            if submit_user:
+                if u_name and u_pass:
+                    try:
+                        supabase.table("users").insert({
+                            "username": u_name.lower(),
+                            "password": hash_password(u_pass),
+                            "role": u_role
+                        }).execute()
+                        st.success(f"✅ Akun {u_name} berhasil dibuat!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal membuat akun: {e}")
+                else:
+                    st.warning("⚠️ Username dan Password tidak boleh kosong!")
+                    
+        st.markdown("#### 📋 Daftar Akun")
+        try:
+            users_data = supabase.table("users").select("username, role").execute().data
+            if users_data:
+                st.dataframe(pd.DataFrame(users_data), use_container_width=True)
+        except:
+            st.info("Tidak dapat memuat data user.")
+
+
+    # =====================================================
+    # MENU 4: ARSIP LAPORAN
+    # =====================================================
+    elif choice == "📂 Arsip Laporan":
+        st.markdown("### 📂 Arsip Laporan Tersimpan")
+        st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
+        
+        try:
+            laporan_data = supabase.table("reports").select("*").order("submit_time", desc=True).execute().data
+            if laporan_data:
+                for rep in laporan_data:
+                    with st.expander(f"📄 {rep['cabor']} - {rep['tanggal_kegiatan']}"):
+                        st.write(f"**Disubmit oleh:** {rep['submitted_by']}")
+                        st.write(f"**Waktu Arsip:** {rep['submit_time']}")
+                        st.write(f"**Nama File:** {rep.get('file_name', 'Tidak diketahui')}")
+            else:
+                st.info("Belum ada laporan yang tersimpan di sistem.")
+        except:
+            st.info("Tabel 'reports' belum tersedia atau kosong.")
