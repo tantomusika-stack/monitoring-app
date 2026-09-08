@@ -513,31 +513,68 @@ else:
     # =====================================================
     # MENU: KELOLA JADWAL, ARSIP, DAN USER
     # =====================================================
-    elif choice == "📅 Kelola Jadwal":
+   elif choice == "📅 Kelola Jadwal":
         st.markdown("### 📅 Kelola Jadwal Monitoring")
         st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
         
+        # Daftar lengkap cabor sesuai gambar
+        daftar_cabor = [
+            "ANGGAR (IKASI)", "AERO SPORT (FASI)", "ARUNG JERAM (FAJI)", "ATLETIK (PASI)", 
+            "ANGKAT BESI (PABSI)", "ANGKAT BERAT (PABERSI)", "BINARAGA FITNESS (PBFI)", 
+            "BILIAR (POBSI)", "BALAP SEPEDA (ISSI)", "BOLA BASKET (PERBASI)", 
+            "BOLA SUNDUL (PERBOSI)", "BOLA VOLI (PBVSI)", "BOWLING (PBI)", 
+            "BRIDGE (GABSI)", "BULU TANGKIS (PBSI)", "BASEBALL & SOFTBALL (PERBASASI)", 
+            "BOLA TANGAN (ABTI)", "CATUR (PERCASI)", "CRICKET (PCI)", "DAYUNG (PODSI)", 
+            "DRUM BAND (PDBI)", "GOLF (PGI)", "GULAT (PGSI)", "GATEBALL (PERGATSI)", 
+            "HOCKEY (FHI)", "JUDO (PJSI)", "KEMPO (PERKEMI)", "KARATE (FORKI)", 
+            "LAYAR (PORLASI)", "MENEMBAK (PERBAKIN)", "MUAY THAI (MI)", "MOTOR (IMI)", 
+            "PANAHAN (PERPANI)", "PANJAT TEBING (FPTI)", "PENCAK SILAT (IPSI)", 
+            "PETANQUE (POPI)", "RENANG (PRSI)", "RUGBY (PRUI)", "SENAM (PERSANI)", 
+            "SEPAK BOLA (Askab-PSSI)", "SEPAK TAKRAW (PSTI)", "SEPATU RODA (PORSEROSI)", 
+            "SQUASH (PSI)", "TAEKWONDO (TI)", "TARUNG DERAJAT (KODRAT)", 
+            "TENIS LAPANGAN (PELTI)", "TENIS MEJA (PTMSI)", "TINJU (PERTINA)", 
+            "WUSHU (WI)", "WOODBALL (IwBA)", "KICKBOXING (KBI)", "E. SPORT", 
+            "FLOOR BALL", "MMA", "SELAM", "BARONGSAI (FOBI)", "JUJITSU (PBJI)", 
+            "KURASH", "PICKLE BALL", "BAPOPSI", "PERWOSI", "SIWO"
+        ]
+
         with st.form("tambah_jadwal_form"):
             st.subheader("➕ Tambah Jadwal Baru")
-            c_cabor = st.text_input("Cabang Olahraga", placeholder="Contoh: Atletik")
-            c_tanggal = st.date_input("Tanggal Kegiatan")
+            
+            # 1. Dropdown Cabor
+            c_cabor = st.selectbox("Cabang Olahraga", daftar_cabor)
+            
+            # 2. Kalender Range (Bisa 1 hari atau lebih)
+            c_tanggal = st.date_input(
+                "Tanggal Kegiatan (Klik 2 kali di kalender untuk rentang hari)", 
+                value=[], # Value kosong memicu mode rentang tanggal
+                help="Pilih tanggal mulai, lalu klik tanggal selesai. Jika hanya 1 hari, klik tanggal yang sama dua kali."
+            )
+            
             c_tempat = st.text_input("Lokasi / Tempat", placeholder="Contoh: Stadion Utama")
             
             submit_jadwal = st.form_submit_button("Simpan Jadwal", type="primary")
+            
             if submit_jadwal:
-                if c_cabor and c_tempat:
+                if c_cabor and c_tempat and len(c_tanggal) > 0:
+                    # Logika format tanggal: 1 hari atau rentang
+                    if len(c_tanggal) == 1:
+                        tanggal_str = c_tanggal[0].strftime("%d %b %Y")
+                    else:
+                        tanggal_str = f"{c_tanggal[0].strftime('%d %b %Y')} s/d {c_tanggal[1].strftime('%d %b %Y')}"
+
                     try:
                         supabase.table("schedules").insert({
                             "cabor": c_cabor,
-                            "tanggal": str(c_tanggal),
+                            "tanggal": tanggal_str,
                             "tempat": c_tempat
                         }).execute()
-                        st.success("✅ Jadwal berhasil ditambahkan!")
+                        st.success(f"✅ Jadwal {c_cabor} berhasil ditambahkan!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Gagal menambah jadwal: {e}")
                 else:
-                    st.warning("⚠️ Cabang Olahraga dan Tempat harus diisi!")
+                    st.warning("⚠️ Cabang Olahraga, Tanggal, dan Tempat harus diisi secara lengkap!")
 
         st.markdown("#### 📋 Daftar Jadwal Saat Ini")
         try:
@@ -549,54 +586,3 @@ else:
                 st.info("Belum ada jadwal yang terdaftar.")
         except:
             st.info("Tabel 'schedules' belum tersedia atau kosong.")
-
-    elif choice == "📂 Arsip Laporan":
-        st.markdown("### 📂 Arsip Laporan Tersimpan")
-        st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-        
-        try:
-            laporan_data = supabase.table("reports").select("*").order("submit_time", desc=True).execute().data
-            if laporan_data:
-                for rep in laporan_data:
-                    with st.expander(f"📄 {rep['cabor']} - {rep['tanggal_kegiatan']}"):
-                        st.write(f"**Disubmit oleh:** {rep['submitted_by']}")
-                        st.write(f"**Waktu:** {rep['submit_time']}")
-                        # Anda bisa menambahkan tombol download file path di sini jika diperlukan
-            else:
-                st.info("Belum ada laporan yang tersimpan.")
-        except:
-            st.info("Tabel 'reports' belum tersedia atau kosong.")
-
-    elif choice == "👥 Kelola User":
-        st.markdown("### 👥 Manajemen Pengguna")
-        st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-        
-        with st.form("tambah_user_form"):
-            st.subheader("➕ Tambah Akun Baru")
-            u_name = st.text_input("Username Baru")
-            u_pass = st.text_input("Password", type="password")
-            u_role = st.selectbox("Role (Hak Akses)", ["user", "admin"])
-            
-            submit_user = st.form_submit_button("Buat Akun", type="primary")
-            if submit_user:
-                if u_name and u_pass:
-                    try:
-                        supabase.table("users").insert({
-                            "username": u_name.lower(),
-                            "password": hash_password(u_pass),
-                            "role": u_role
-                        }).execute()
-                        st.success(f"✅ Akun {u_name} berhasil dibuat!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Gagal membuat akun: {e}")
-                else:
-                    st.warning("⚠️ Username dan Password tidak boleh kosong!")
-                    
-        st.markdown("#### 📋 Daftar Akun")
-        try:
-            users_data = supabase.table("users").select("username, role").execute().data
-            if users_data:
-                st.dataframe(pd.DataFrame(users_data), use_container_width=True)
-        except:
-            pass
