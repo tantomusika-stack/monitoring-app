@@ -316,7 +316,7 @@ else:
                     
                     if dl_id:
                         c = conn.cursor()
-                        c.execute("SELECT file_name, file_data FROM reports WHERE id=?", (dl_id,))
+                        c.execute("SELECT file_name, file_data FROM reports WHERE id=?", (int(dl_id),))
                         row = c.fetchone()
                         
                         if row:
@@ -337,7 +337,7 @@ else:
                     
                     if st.button("Hapus File Ini", use_container_width=True):
                         c = conn.cursor()
-                        c.execute("DELETE FROM reports WHERE id=?", (del_id,))
+                        c.execute("DELETE FROM reports WHERE id=?", (int(del_id),))
                         conn.commit()
                         st.success(f"✅ Laporan dengan ID {del_id} berhasil dihapus dari sistem!")
                         st.rerun()
@@ -451,7 +451,7 @@ else:
                         if st.button("Hapus Jadwal", type="primary"):
                             conn = sqlite3.connect(DB_NAME)
                             c = conn.cursor()
-                            c.execute("DELETE FROM schedules WHERE id=?", (del_id,))
+                            c.execute("DELETE FROM schedules WHERE id=?", (int(del_id),))
                             conn.commit()
                             conn.close()
                             st.success("Jadwal berhasil dihapus!")
