@@ -1316,7 +1316,43 @@ def halaman_laporan_admin() -> None:
 
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    st.markdown("---")
+    # ------------------------------------------------------------
+    # DOWNLOAD WORD PER LAPORAN
+    # ------------------------------------------------------------
+    st.markdown("### ⬇️ Download Word per Laporan")
+    st.caption("Setiap laporan yang sudah tersimpan memiliki tombol Download Word masing-masing.")
+
+    for _, item in df.iterrows():
+        laporan_id = int(item["id"])
+        status_item = item["status"] or DEFAULT_STATUS
+        c_info, c_download = st.columns([5, 1.3])
+
+        with c_info:
+            st.markdown(
+                f"**ID {laporan_id} — {item['cabor']}**  \n"
+                f"📅 {item['tanggal']} &nbsp;|&nbsp; 📍 {item['lokasi']} &nbsp;|&nbsp; "
+                f"👤 {item['petugas']} &nbsp;|&nbsp; **{status_item}**"
+            )
+
+        with c_download:
+            laporan_row = get_laporan_by_id(laporan_id)
+            if laporan_row:
+                word_per_laporan = generate_word_report(
+                    [dict(laporan_row)],
+                    is_all=False,
+                    include_photos=True,
+                )
+                st.download_button(
+                    "⬇️ Download Word",
+                    data=word_per_laporan,
+                    file_name=f"Laporan_Monev_BINPRES_ID-{laporan_id}_{item['cabor']}_{item['tanggal']}.docx",
+                    mime=WORD_MIME,
+                    use_container_width=True,
+                    key=f"download_word_admin_{laporan_id}",
+                )
+
+        st.markdown("---")
+
     st.markdown("### 🔍 Detail, Export & Tindak Lanjut")
 
     pilihan_id = st.selectbox(
@@ -1776,18 +1812,84 @@ def halaman_laporan_saya() -> None:
     )
 
 
+def halaman_download_laporan() -> None:
+    """Halaman khusus user untuk mengunduh file Word dari laporan miliknya."""
+    st.markdown(
+        """
+        <div class="main-header">
+            <h1>📥 Download Laporan</h1>
+            <p>Unduh file Word dari laporan monitoring yang sudah Anda simpan</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    username = st.session_state["username"]
+    status_f = st.selectbox(
+        "Filter Status",
+        ["Semua"] + STATUS_OPTIONS,
+        key="download_status_f",
+    )
+    keyword = st.text_input(
+        "🔎 Cari cabor / lokasi",
+        key="download_kw",
+        placeholder="Contoh: Tenis Meja / GOR Tangerang",
+    )
+
+    df = fetch_laporan_list(
+        petugas=username,
+        status=status_f if status_f != "Semua" else None,
+        keyword=keyword.strip() or None,
+    )
+
+    if df.empty:
+        st.info("Belum ada laporan yang dapat diunduh.")
+        return
+
+    st.caption(f"Ditemukan **{len(df)}** laporan Anda.")
+
+    for _, item in df.iterrows():
+        laporan_id = int(item["id"])
+        row = get_laporan_by_id(laporan_id)
+        if not row:
+            continue
+
+        with st.container(border=True):
+            c1, c2 = st.columns([4, 1.4])
+            with c1:
+                st.markdown(
+                    f"**ID {laporan_id} — {row['cabor']}**  \n"
+                    f"📅 {row['tanggal']} &nbsp; | &nbsp; 📍 {row['lokasi']}  \n"
+                    f"📌 Status: **{row['status'] or DEFAULT_STATUS}**",
+                    unsafe_allow_html=True,
+                )
+            with c2:
+                word_file = generate_word_report([dict(row)], is_all=False)
+                st.download_button(
+                    "⬇️ Download Word",
+                    data=word_file,
+                    file_name=f"Laporan_{row['cabor']}_{row['tanggal']}.docx",
+                    mime=WORD_MIME,
+                    use_container_width=True,
+                    key=f"download_user_word_{laporan_id}",
+                )
+
+
 def halaman_user() -> None:
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
     render_sidebar()
 
-    tab1, tab2 = st.tabs([
+    tab1, tab2, tab3 = st.tabs([
         "📝 Form Input Monitoring",
         "📂 Laporan Saya",
+        "📥 Download Laporan",
     ])
     with tab1:
         form_input_monitoring()
     with tab2:
         halaman_laporan_saya()
+    with tab3:
+        halaman_download_laporan()
 
 
 # ============================================================
