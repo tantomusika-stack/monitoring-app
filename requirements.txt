@@ -1,7 +1,4 @@
-streamlit>=1.40.0
-pandas>=2.2.0
-python-docx>=1.1.2
-Pillow>=10.0.0
-openpyxl>=3.1.5
-supabase==2.31.0
-bcrypt
+streamlit
+python-docx
+pandas
+Pillow
