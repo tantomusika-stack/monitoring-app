@@ -31,11 +31,7 @@ MAX_PHOTO_MB = 10
 MAX_PHOTOS_PER_REPORT = 10
 PHOTO_TIMESTAMP_FORMAT = "%d-%m-%Y %H:%M:%S"
 DEFAULT_STATUS = "Belum Ditindaklanjuti"
-STATUS_OPTIONS = [
-    "Belum Ditindaklanjuti",
-    "Sedang Ditindaklanjuti",
-    "Selesai",
-]
+STATUS_OPTIONS = ["Belum Ditindaklanjuti", "Sedang Ditindaklanjuti", "Selesai"]
 
 DEFAULT_CABOR = [
     "ANGGAR", "ANGKAT BERAT", "ANGKAT BESI", "AQUATIC/RENANG", "ARUNG JERAM",
@@ -126,44 +122,25 @@ def init_backend() -> None:
     try:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
-            nama_lengkap TEXT NOT NULL DEFAULT '',
-            aktif INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL
+            id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user', nama_lengkap TEXT NOT NULL DEFAULT '', aktif INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS cabor (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nama TEXT NOT NULL UNIQUE,
-            aktif INTEGER NOT NULL DEFAULT 1
+            id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT NOT NULL UNIQUE, aktif INTEGER NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS laporan_monitoring (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tanggal TEXT NOT NULL,
-            cabor TEXT NOT NULL,
-            lokasi TEXT NOT NULL,
-            petugas TEXT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, tanggal TEXT NOT NULL, cabor TEXT NOT NULL, lokasi TEXT NOT NULL, petugas TEXT NOT NULL,
             fisik_parameter TEXT DEFAULT '', fisik_peaking TEXT DEFAULT '', fisik_recovery TEXT DEFAULT '', fisik_cedera TEXT DEFAULT '',
             taktis_lawan TEXT DEFAULT '', taktis_instruksi TEXT DEFAULT '', taktis_ujicoba TEXT DEFAULT '',
             mental_cemas TEXT DEFAULT '', mental_fokus TEXT DEFAULT '', mental_rutinitas TEXT DEFAULT '', mental_psikolog TEXT DEFAULT '',
             nutrisi_bb TEXT DEFAULT '', nutrisi_asupan TEXT DEFAULT '', nutrisi_hidrasi TEXT DEFAULT '', nutrisi_tidur TEXT DEFAULT '',
             medis_rekam TEXT DEFAULT '', medis_doping TEXT DEFAULT '', medis_alat TEXT DEFAULT '', medis_nonteknis TEXT DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'Belum Ditindaklanjuti',
-            catatan_admin TEXT DEFAULT '',
-            daftar_hadir_koni TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            status TEXT NOT NULL DEFAULT 'Belum Ditindaklanjuti', catatan_admin TEXT DEFAULT '', daftar_hadir_koni TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS laporan_foto (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            laporan_id INTEGER NOT NULL,
-            filename TEXT NOT NULL,
-            original_name TEXT NOT NULL,
-            mime_type TEXT NOT NULL,
-            photo_data BLOB NOT NULL,
-            timestamp_mark TEXT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, laporan_id INTEGER NOT NULL, filename TEXT NOT NULL, original_name TEXT NOT NULL,
+            mime_type TEXT NOT NULL, photo_data BLOB NOT NULL, timestamp_mark TEXT NOT NULL,
             FOREIGN KEY(laporan_id) REFERENCES laporan_monitoring(id) ON DELETE CASCADE
         );
         """)
@@ -179,8 +156,7 @@ def init_backend() -> None:
         conn.close()
 
 def logout() -> None:
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
+    for key in list(st.session_state.keys()): del st.session_state[key]
     st.rerun()
 
 # ============================================================
@@ -235,8 +211,7 @@ def fetch_laporan_summary() -> Dict[str, int]:
 
 def fetch_chart_data():
     rows = _all_laporan_rows()
-    if not rows:
-        return (pd.DataFrame(columns=["cabor","jumlah"]), pd.DataFrame(columns=["bulan","jumlah"]), pd.DataFrame(columns=["status","jumlah"]))
+    if not rows: return (pd.DataFrame(columns=["cabor","jumlah"]), pd.DataFrame(columns=["bulan","jumlah"]), pd.DataFrame(columns=["status","jumlah"]))
     df = pd.DataFrame(rows)
     by_cabor = df.groupby("cabor").size().reset_index(name="jumlah").sort_values("jumlah", ascending=False).head(15)
     df["bulan"] = df["tanggal"].astype(str).str[:7]
@@ -284,16 +259,10 @@ def get_foto_bytes(foto: dict) -> Optional[bytes]:
 # FOTO & WORD
 # ============================================================
 def _load_font(size: int = 24):
-    candidates = [
-        "C:/Windows/Fonts/arialbd.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/System/Library/Fonts/Helvetica.ttc"
-    ]
+    candidates = ["C:/Windows/Fonts/arialbd.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/System/Library/Fonts/Helvetica.ttc"]
     for path in candidates:
-        try:
-            return ImageFont.truetype(path, size=size)
-        except Exception:
-            continue
+        try: return ImageFont.truetype(path, size=size)
+        except Exception: continue
     return ImageFont.load_default()
 
 def add_timestamp_watermark(raw: bytes, timestamp_text: str) -> bytes:
@@ -379,8 +348,11 @@ def generate_word_report(data_list: List[Dict[str, Any]], is_all: bool = False, 
             add_section_compact(section_title,[(label,data.get(key)) for key,label in fields])
         if data.get("catatan_admin"):
             add_section_compact("Catatan Admin / Tindak Lanjut",[("Catatan",data["catatan_admin"])])
-        if include_photos and data.get("id"):
-            fotos=get_fotos_by_laporan(int(data["id"]),include_data=True)
+            
+        if include_photos:
+            fotos = data.get("fotos_direct")
+            if not fotos and data.get("id"):
+                fotos = get_fotos_by_laporan(int(data["id"]), include_data=True)
             if fotos: photos_queue.append((data,fotos))
 
     if include_photos and photos_queue:
@@ -389,12 +361,12 @@ def generate_word_report(data_list: List[Dict[str, Any]], is_all: bool = False, 
             h=doc.add_paragraph(); h.alignment=WD_ALIGN_PARAGRAPH.CENTER; h.paragraph_format.space_after=Pt(4); _set_run_font(h.add_run("DOKUMENTASI FOTO"),12,True)
             sub=doc.add_paragraph(); sub.alignment=WD_ALIGN_PARAGRAPH.CENTER; sub.paragraph_format.space_after=Pt(8); _set_run_font(sub.add_run(f"{data.get('cabor','-')}  |  {data.get('tanggal','-')}  |  {data.get('lokasi','-')}  |  Petugas: {data.get('petugas','-')}"),9)
             for foto in fotos:
-                img_bytes=get_foto_bytes(foto)
+                img_bytes = get_foto_bytes(foto)
                 if img_bytes:
                     try:
                         doc.add_picture(BytesIO(img_bytes), width=Inches(5.2))
                         cap=doc.add_paragraph(); cap.alignment=WD_ALIGN_PARAGRAPH.CENTER; cap.paragraph_format.space_before=Pt(2); cap.paragraph_format.space_after=Pt(8)
-                        _set_run_font(cap.add_run(f"{foto['original_name'] or foto['filename']} | Time-mark: {foto['timestamp_mark'] or '-'}"),8)
+                        _set_run_font(cap.add_run(f"{foto['original_name'] or foto.get('filename','-')} | Time-mark: {foto['timestamp_mark'] or '-'}"),8)
                     except Exception: _add_compact_para(doc,f"[Gagal memuat: {foto['original_name']}]",size=9)
                 else: _add_compact_para(doc,f"[Foto tidak tersedia: {foto['original_name']}]",size=9)
     buf=BytesIO(); doc.save(buf); return buf.getvalue()
@@ -465,7 +437,6 @@ def halaman_login() -> None:
                 if user and verify_password(password,user["password"]):
                     st.session_state.update(logged_in=True,username=user["username"],role=user["role"],nama_lengkap=user.get("nama_lengkap") or user["username"]); st.rerun()
                 else: st.error("Username atau Password salah / akun tidak aktif.")
-        st.caption("Admin: userkoni / koni123 • Petugas: monitoring / koni123")
 
 def render_detail_laporan(row: dict) -> None:
     st.markdown(f"**Cabor:** {row['cabor']} &nbsp;|&nbsp; **Tanggal:** {row['tanggal']} &nbsp;|&nbsp; **Lokasi:** {row['lokasi']} &nbsp;|&nbsp; **Petugas:** {row['petugas']}")
@@ -489,22 +460,20 @@ def render_detail_laporan(row: dict) -> None:
 # USER / PETUGAS
 # ============================================================
 def form_input_monitoring() -> None:
-    st.markdown('<div class="main-header"><h1>📝 Form Input Monitoring</h1><p>Isi laporan monitoring cabang olahraga secara lengkap</p></div>',unsafe_allow_html=True)
-    st.caption(f"Akun: **{st.session_state.get('username','')}**")
+    st.markdown('<div class="main-header"><h1>📝 Form Input Monitoring</h1><p>Isi laporan monitoring dan unduh langsung format Word-nya</p></div>',unsafe_allow_html=True)
     cabor_list=get_cabor_list()
     st.markdown('<span class="section-badge">📷 Dokumentasi Foto</span>',unsafe_allow_html=True)
-    st.caption("Upload foto kegiatan sebelum menyimpan form. Maksimal 10 foto, masing-masing maksimal 10 MB.")
+    st.caption("Upload foto kegiatan sebelum membuat laporan (Maks. 10 foto).")
     uploaded_files=st.file_uploader("Pilih foto (JPG / PNG / WEBP)",type=["jpg","jpeg","png","webp"],accept_multiple_files=True,key="uploader_monitoring")
     if uploaded_files:
-        st.success(f"✅ {len(uploaded_files)} foto siap disimpan.")
+        st.success(f"✅ {len(uploaded_files)} foto siap diproses.")
         preview_cols=st.columns(min(4,len(uploaded_files)))
         for i,f in enumerate(uploaded_files):
             with preview_cols[i%len(preview_cols)]: st.image(f,caption=f.name,use_container_width=True)
-    else: st.info("Belum ada foto. Foto monitoring wajib minimal 1 foto.")
     st.markdown("---")
 
     default_petugas=st.session_state.get("nama_lengkap","")
-    with st.form("form_monitoring",clear_on_submit=True):
+    with st.form("form_monitoring",clear_on_submit=False):
         st.markdown('<span class="section-badge">📌 Informasi Dasar</span>',unsafe_allow_html=True)
         col1,col2=st.columns(2)
         with col1:
@@ -525,18 +494,23 @@ def form_input_monitoring() -> None:
         with st.expander("⚕️ 5. Medis, Bebas Doping & Logistik"):
             medis_1=st.text_area("Status rekam medis terkini & kesiapan fisioterapis:",height=70); medis_2=st.text_area("Keamanan obat, suplemen (Bebas Doping):",height=70); medis_3=st.text_area("Kesiapan perlengkapan khusus bertanding:",height=70); medis_4=st.text_area("Kendala non-teknis (akomodasi, transportasi):",height=70)
         st.markdown("---"); st.markdown('<span class="section-badge">👥 Daftar Hadir Perwakilan KONI Kabupaten Tangerang</span>',unsafe_allow_html=True)
-        daftar_hadir_koni=st.text_area("Nama yang hadir mewakili KONI Kabupaten Tangerang",placeholder="Contoh:\n1. Nama — Jabatan\n2. Nama — Jabatan",height=110)
-        if uploaded_files: st.caption(f"📷 {len(uploaded_files)} foto siap disimpan. Foto akan diberi time-mark server.")
-        else: st.error("📷 Foto monitoring wajib diunggah. Minimal 1 foto.")
-        submitted=st.form_submit_button("💾 Simpan Laporan & Siapkan Download Word",use_container_width=True,type="primary")
-        if submitted:
-            if cabor=="Pilih Cabor...": st.error("⚠️ Harap pilih Cabang Olahraga.")
+        daftar_hadir_koni=st.text_area("Nama yang hadir mewakili KONI Kabupaten Tangerang",placeholder="Contoh:\n1. Nama — Jabatan",height=110)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        c_btn1, c_btn2 = st.columns(2)
+        with c_btn1:
+            submit_nosave = st.form_submit_button("📄 Buat Word Saja (Tanpa Simpan)", type="primary", use_container_width=True)
+        with c_btn2:
+            submit_save = st.form_submit_button("💾 Simpan ke Database & Download", use_container_width=True)
+            
+        if submit_save or submit_nosave:
+            if cabor=="Pilih Cabor...": st.error("⚠️️ Harap pilih Cabang Olahraga.")
             elif not lokasi.strip(): st.error("⚠️ Lokasi wajib diisi.")
             elif not nama_petugas.strip(): st.error("⚠️ Nama Petugas wajib diisi.")
             elif not uploaded_files: st.error("⚠️ Foto monitoring wajib diunggah minimal 1 foto.")
             elif len(uploaded_files)>MAX_PHOTOS_PER_REPORT: st.error(f"⚠️ Maksimal {MAX_PHOTOS_PER_REPORT} foto per laporan.")
-            elif any(len(f.getbuffer())>MAX_PHOTO_MB*1024*1024 for f in uploaded_files): st.error(f"⚠️ Ukuran setiap foto maksimal {MAX_PHOTO_MB} MB.")
-            elif not daftar_hadir_koni.strip(): st.error("⚠️️ Daftar hadir perwakilan KONI wajib diisi.")
+            elif not daftar_hadir_koni.strip(): st.error("⚠️ Daftar hadir perwakilan KONI wajib diisi.")
             else:
                 payload={
                     "tanggal":tanggal.isoformat(),"cabor":cabor,"lokasi":lokasi.strip(),"petugas":nama_petugas.strip(),
@@ -547,20 +521,53 @@ def form_input_monitoring() -> None:
                     "medis_rekam":medis_1,"medis_doping":medis_2,"medis_alat":medis_3,"medis_nonteknis":medis_4,
                     "status":DEFAULT_STATUS,"catatan_admin":"","daftar_hadir_koni":daftar_hadir_koni.strip(),"created_at":_now_iso(),"updated_at":_now_iso()
                 }
-                conn=db_connect()
-                cols=", ".join(payload.keys()); placeholders=", ".join(["?"]*len(payload)); cur=conn.execute(f"INSERT INTO laporan_monitoring({cols}) VALUES({placeholders})",tuple(payload.values())); laporan_id=cur.lastrowid; conn.commit(); conn.close()
-                n_foto=save_uploaded_photos(int(laporan_id),uploaded_files)
-                st.session_state["last_saved_laporan_id"]=int(laporan_id)
-                st.success(f"✅ Laporan berhasil disimpan! ID laporan: **{laporan_id}**. {n_foto} foto ikut tersimpan.")
-                st.info("File Word dapat langsung diunduh di bawah setelah proses penyimpanan selesai.")
+                
+                if submit_save:
+                    conn=db_connect(); cols=", ".join(payload.keys()); placeholders=", ".join(["?"]*len(payload))
+                    cur=conn.execute(f"INSERT INTO laporan_monitoring({cols}) VALUES({placeholders})",tuple(payload.values()))
+                    laporan_id=cur.lastrowid; conn.commit(); conn.close()
+                    save_uploaded_photos(int(laporan_id),uploaded_files)
+                    
+                    st.session_state["last_saved_laporan_id"]=int(laporan_id)
+                    st.session_state.pop("direct_download_bytes", None)
+                    st.success(f"✅ Laporan berhasil disimpan ke Database (ID: {laporan_id}). Scroll ke bawah untuk download file.")
+                
+                elif submit_nosave:
+                    fotos_direct = []
+                    timestamp_text = datetime.datetime.now().astimezone().strftime(PHOTO_TIMESTAMP_FORMAT)
+                    for f in uploaded_files:
+                        raw = f.getbuffer().tobytes()
+                        processed = add_timestamp_watermark(raw, timestamp_text)
+                        fotos_direct.append({"original_name": f.name, "timestamp_mark": timestamp_text, "photo_data": processed})
+                    
+                    payload["fotos_direct"] = fotos_direct
+                    word_file = generate_word_report([payload], False, True)
+                    
+                    st.session_state["direct_download_bytes"] = word_file
+                    st.session_state["direct_download_name"] = safe_filename(f"Laporan_{cabor}_{tanggal}.docx")
+                    st.session_state.pop("last_saved_laporan_id", None)
+                    st.success("✅ File Word berhasil di-generate tanpa disimpan ke database. Scroll ke bawah untuk download.")
 
-    last_id=st.session_state.get("last_saved_laporan_id")
-    if last_id:
-        row_last=get_laporan_by_id(int(last_id))
+    # Tampilkan tombol download jika user memilih Save DB
+    if st.session_state.get("last_saved_laporan_id"):
+        row_last=get_laporan_by_id(int(st.session_state["last_saved_laporan_id"]))
         if row_last:
-            st.markdown("---"); st.markdown("### ⬇️ Download Laporan yang Baru Disimpan")
+            st.markdown("### 📥 Download Laporan yang Baru Disimpan")
             word_file=generate_word_report([row_last],False,True)
-            st.download_button("⬇️ Download Word Laporan Ini (termasuk foto)",data=word_file,file_name=safe_filename(f"Laporan_{row_last['cabor']}_{row_last['tanggal']}.docx"),mime=WORD_MIME,use_container_width=True,type="primary",key=f"dl_after_save_{last_id}")
+            st.download_button("⬇️ Download Word Laporan Ini",data=word_file,file_name=safe_filename(f"Laporan_{row_last['cabor']}_{row_last['tanggal']}.docx"),mime=WORD_MIME,use_container_width=True,type="primary",key="dl_db")
+
+    # Tampilkan tombol download jika user memilih Tanpa Simpan
+    if st.session_state.get("direct_download_bytes"):
+        st.markdown("### 📥 Download Laporan (Tanpa Disimpan)")
+        st.download_button(
+            "⬇️ Klik Disini Untuk Mengunduh File Word", 
+            data=st.session_state["direct_download_bytes"], 
+            file_name=st.session_state["direct_download_name"], 
+            mime=WORD_MIME, 
+            type="primary",
+            use_container_width=True,
+            key="dl_direct"
+        )
 
 def halaman_laporan_saya() -> None:
     st.markdown('<div class="main-header"><h1>📂 Laporan Saya</h1><p>Daftar laporan yang pernah Anda input — unduh Word di setiap laporan</p></div>',unsafe_allow_html=True)
